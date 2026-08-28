@@ -22,7 +22,7 @@ except ImportError:
 import generator_19171 as generator
 
 APP_NAME = "Генератор пропусков 19.17.1"
-APP_VERSION = "0.3.8"
+APP_VERSION = "0.3.9"
 BG_COLOR = "#E6EBE0"  # светло-серый/голубоватый
 BTN_BG = "#CAD4CC"    # чуть темнее для кнопок
 BTN_ACTIVE = "#B3C3B8"
@@ -134,6 +134,7 @@ class App(tk.Tk):
 
         self._build_ui()
         self._refresh_district_checks()
+        self._refresh_org_db_list()
 
         # стиль для ttk
         style = ttk.Style(self)
@@ -210,6 +211,15 @@ class App(tk.Tk):
         r = 0
 
         ttk.Label(parent, text="Организация-заявитель", font=("", 10, "bold")).grid(row=r, column=0, columnspan=4, sticky="w", **pad); r += 1
+
+        # Поиск в базе по наименованию организации
+        ttk.Label(parent, text="Поиск в базе (введите или выберите организацию):").grid(row=r, column=0, columnspan=2, sticky="w", **pad)
+        self.db_org_cb = ttk.Combobox(parent, width=50, state="normal")
+        self.db_org_cb.grid(row=r, column=2, columnspan=2, sticky="ew", **pad)
+        self.db_org_cb.bind("<KeyRelease>", self._db_org_search_typed)
+        self.db_org_cb.bind("<<ComboboxSelected>>", self._on_pick_org)
+        r += 1
+
         self._entry(parent, "Организация-заявитель:", self.var_org_info, r, 0, width=60, **pad); r += 1
 
         ttk.Separator(parent, orient="horizontal").grid(row=r, column=0, columnspan=4, sticky="ew", **pad); r += 1
@@ -452,6 +462,102 @@ class App(tk.Tk):
             parts.append(custom)
         return "; ".join(parts)
 
+    # ------------------------------------------------------------- поиск в базе по организации
+    def _refresh_org_db_list(self):
+        """Загружает список организаций из базы и заполняет Combobox."""
+        try:
+            recs = generator._db_load_19171()
+            values = []
+            seen = set()
+            for r in recs:
+                name = (r.get("org_info") or "").strip()
+                if name and name.lower() not in seen:
+                    seen.add(name.lower())
+                    values.append(name)
+            self.db_org_cb["values"] = values
+        except Exception:
+            self.db_org_cb["values"] = []
+
+    def _db_org_search_typed(self, event):
+        """Фильтрует список организаций по вводу и открывает выпадающий список."""
+        # игнорируем служебные клавиши
+        if event.keysym in ("Up", "Down", "Return", "Escape", "Tab", "Left", "Right"):
+            return
+        try:
+            recs = generator._db_load_19171()
+            typed = self.db_org_cb.get().strip().lower()
+            values = []
+            seen = set()
+            for r in recs:
+                name = (r.get("org_info") or "").strip()
+                if not name:
+                    continue
+                if typed and typed not in name.lower():
+                    continue
+                if name.lower() not in seen:
+                    seen.add(name.lower())
+                    values.append(name)
+            self.db_org_cb["values"] = values[:50]
+            self.db_org_cb.event_generate("<Down>")
+        except Exception:
+            pass
+
+    def _on_pick_org(self, event=None):
+        """Заполняет форму данными из базы по выбранной организации."""
+        try:
+            name = self.db_org_cb.get().strip()
+            if not name:
+                return
+            rec = generator.db_find_19171(name)
+            if not rec:
+                return
+            # Организация
+            self.var_org_info.set(rec.get("org_info", ""))
+            self.var_org_short.set(rec.get("org_short", ""))
+            # Цель
+            if rec.get("goal"):
+                self.var_goal.set(rec.get("goal", ""))
+            # Районы
+            for d, v in self.district_vars.items():
+                v.set(d in (rec.get("districts") or []))
+            # ГПНИУ
+            self.var_include_pgrez.set(bool(rec.get("include_pgrez", False)))
+            # Объекты
+            self.var_custom_object.set(rec.get("custom_object", ""))
+            # Даты
+            if rec.get("date_from"):
+                self.var_date_from.set(rec.get("date_from", ""))
+            if rec.get("date_to"):
+                self.var_date_to.set(rec.get("date_to", ""))
+            # Подписант
+            if rec.get("issued_by"):
+                self.var_issued.set(rec.get("issued_by", ""))
+            # Лица
+            persons = rec.get("persons") or []
+            for r in self.person_rows:
+                r.destroy()
+            self.person_rows.clear()
+            if persons:
+                for p in persons:
+                    self.add_person()
+                    self.person_rows[-1].set_data(p)
+            else:
+                self.add_person()
+            # Авто
+            vehicles = rec.get("vehicles") or []
+            for r in self.vehicle_rows:
+                r.destroy()
+            self.vehicle_rows.clear()
+            if vehicles:
+                for v in vehicles:
+                    self.add_vehicle()
+                    self.vehicle_rows[-1].set_data(v)
+            else:
+                self.add_vehicle()
+            self.status_bar.config(text=f"База знаний: подставлены данные для «{rec.get('org_info', '')}»")
+        except Exception as ex:
+            self.status_bar.config(text=f"Ошибка подстановки: {ex}")
+
     def clear_form(self):
         """Очистка всей формы."""
         for v in (self.var_org_info, self.var_org_short,
@@ -470,6 +576,12 @@ class App(tk.Tk):
             r.destroy()
         self.vehicle_rows.clear()
         self.add_vehicle()
+        # обновляем выпадающий список организаций (если в базе появились новые)
+        try:
+            self.db_org_cb.set("")
+            self._refresh_org_db_list()
+        except Exception:
+            pass
         self.status_bar.config(text="Форма очищена.")
 
     def choose_output(self):
@@ -543,6 +655,11 @@ class App(tk.Tk):
             if messagebox.askyesno(APP_NAME, msg + "\n\nОткрыть папку с документами?"):
                 os.makedirs(os.path.dirname(files[0]), exist_ok=True)
                 os.startfile(os.path.dirname(files[0]))
+            # обновляем список организаций в выпадающем списке
+            try:
+                self._refresh_org_db_list()
+            except Exception:
+                pass
             self.status_bar.config(text="Создано файлов: %d → %s" % (len(files), os.path.dirname(files[0])))
         except Exception as ex:
             messagebox.showerror(APP_NAME, "Ошибка генерации:\n%s" % ex)
