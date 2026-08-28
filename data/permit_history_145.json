@@ -1,0 +1,30 @@
+[
+ {
+  "last_name": "Петров",
+  "first_name": "Пётр",
+  "middle_name": "Петрович",
+  "birth_date": "01.01.1980",
+  "id_number": "123A",
+  "cargo": "Столы 5 шт.",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "кладбище о.н.п. Пучин",
+  "car_make": "Lada Vesta",
+  "car_number": "1234 AB-7"
+ },
+ {
+  "last_name": "Тестов",
+  "first_name": "Тест",
+  "middle_name": "Тестович",
+  "birth_date": "01.01.1980",
+  "id_number": "1234567A001PB2",
+  "cargo": "Столы 5 шт., стулья 10 шт.",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "кладбище о.н.п. Пучин; кладбище о.н.п. Сувиды",
+  "car_make": "Lada Vesta",
+  "car_number": "1234 AB-7"
+ }
+]

@@ -1,0 +1,66 @@
+[
+ {
+  "org_key": "тест",
+  "org_info": "ООО \"Тест\"",
+  "org_short": "Тест",
+  "org_rep_last": "",
+  "org_rep_first": "",
+  "org_rep_middle": "",
+  "goal": "мониторинг",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "ГПНИУ \"ПГРЭЗ\"",
+  "include_pgrez": false,
+  "custom_object": "",
+  "date_from": "01.09.2026",
+  "date_to": "30.09.2026",
+  "issued_by": "Заместитель начальника отдела Путькова Т.М.",
+  "persons": [
+   {
+    "position": "Инженер",
+    "last_name": "Петров",
+    "first_name": "Пётр",
+    "middle_name": "Петрович"
+   }
+  ],
+  "vehicles": [
+   {
+    "make": "Lada Vesta",
+    "number": "1234 AB-7"
+   }
+  ]
+ },
+ {
+  "org_key": "тесторг",
+  "org_info": "ООО \"Тестовая Организация\"",
+  "org_short": "ТестОрг",
+  "org_rep_last": "",
+  "org_rep_first": "",
+  "org_rep_middle": "",
+  "goal": "радиоэкологический мониторинг",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "ГПНИУ \"ПГРЭЗ\"; кладбище о.н.п. Пучин",
+  "include_pgrez": false,
+  "custom_object": "",
+  "date_from": "01.09.2026",
+  "date_to": "30.09.2026",
+  "issued_by": "Заместитель начальника отдела Путькова Т.М.",
+  "persons": [
+   {
+    "position": "Инженер",
+    "last_name": "Петров",
+    "first_name": "Пётр",
+    "middle_name": "Петрович"
+   }
+  ],
+  "vehicles": [
+   {
+    "make": "Lada Vesta",
+    "number": "1234 AB-7"
+   }
+  ]
+ }
+]

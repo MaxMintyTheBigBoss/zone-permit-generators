@@ -1,0 +1,44 @@
+[
+ {
+  "last_name": "Петров",
+  "first_name": "Пётр",
+  "middle_name": "Петрович",
+  "birth_date": "01.01.1980",
+  "id_number": "123A",
+  "goal": "благоустройство места захоронения",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "кладбище о.н.п. Пучин; кладбище о.н.п. Сувиды",
+  "car_make": "Lada Vesta",
+  "car_number": "1234 AB-7"
+ },
+ {
+  "last_name": "Тестов",
+  "first_name": "Тест",
+  "middle_name": "Тестович",
+  "birth_date": "01.01.1980",
+  "id_number": "1234567A001PB2",
+  "goal": "благоустройство места захоронения",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "кладбище о.н.п. Пучин; кладбище о.н.п. Сувиды",
+  "car_make": "Lada Vesta",
+  "car_number": "1234 AB-7"
+ },
+ {
+  "last_name": "Иванов",
+  "first_name": "Иван",
+  "middle_name": "Иванович",
+  "birth_date": "01.01.1960",
+  "id_number": "1234567A000PB1",
+  "goal": "благоустройство места захоронения",
+  "districts": [
+   "Брагинский"
+  ],
+  "objects": "кладбище о.н.п. Пучин",
+  "car_make": "Volkswagen Polo",
+  "car_number": "1234 AB-5"
+ }
+]
