@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Модуль генерации документов пропусков по промту (п. 14.3).
-Заявление 14.3 + индивидуальные и транспортные пропуска.
-Работает полностью локально, без интернета и LLM.
+Генерация документов пропусков по п. 14.3.
+
+Использует общие модули permit_common (пути, замена плейсхолдеров, join)
+и permit_db (SQLite-хранилище истории). API внизу сохранён совместимым
+с прежним JSON-слоем: _db_load/_db_remember/db_find.
 """
 import os
-import re
 import sys
 from datetime import datetime
 from copy import deepcopy
@@ -13,11 +14,19 @@ from copy import deepcopy
 from docx import Document
 from docx.oxml.ns import qn
 
-# Цель въезда (Placeholder_6) — по промту: кнопка или «свой вариант».
+from permit_common import (
+    resource_path, runtime_base, template_dir,
+    load_reference, filter_objects_by_districts,
+    join_districts, join_objects, sanitize, today_dmy,
+    fill_doc, _inline_replace, _PH_RE,
+)
+import permit_db as dbm
+
+# Цель въезда (Placeholder_6).
 GOAL_BLAGOUSTROISTVO = "благоустройство места захоронения"
 GOAL_CUSTOM = "свой вариант"
 
-# Районы (Placeholder_4) — по промту, множественный выбор из 8.
+# Районы (Placeholder_4) — множественный выбор из 8.
 DISTRICTS = [
     "Брагинский", "Буда-Кошелевский", "Ветковский", "Добрушский",
     "Кормянский", "Наровлянский", "Хойникский", "Чечерский",
@@ -36,99 +45,6 @@ SIGNERS = [
     "Главный специалист Одиноченко И.В.",
     "Главный специалист Першко А.С.",
 ]
-
-# Регулярка для плейсхолдеров: Placeholder_1.1, Placeholder_4.2, **Placeholder_20**
-_PH_RE = re.compile(r"\*{0,2}(Placeholder_\d+(?:\.\d+)?)\*{0,2}")
-
-
-def resource_path():
-    """Путь к ресурсам: совместим с PyInstaller (из .exe берём из _MEIPASS)."""
-    base = getattr(sys, "_MEIPASS", None)
-    if base:
-        return base
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-def runtime_base():
-    """Постоянное место рядом с программой (для данных и вывода).
-
-    В .exe это папка самого exe, чтобы база знаний и результат сохранялись
-    между запусками (в отличие от временного _MEIPASS)."""
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(os.path.abspath(sys.argv[0]))
-    return os.path.dirname(os.path.abspath(__file__))
-
-
-def template_dir():
-    return os.path.join(resource_path(), "templates")
-
-
-def load_reference():
-    """Справочник: список {district, object}. Объект = 'кладбище о.н.п. <название>'."""
-    path = os.path.join(template_dir(), "справочник.docx")
-    entries = []
-    if not os.path.exists(path):
-        return entries
-    doc = Document(path)
-    for p in doc.paragraphs:
-        parts = [t for t in p.text.split("\t") if t.strip()]
-        if len(parts) >= 3:
-            district = parts[0].strip()
-            obj = "кладбище о.н.п. " + parts[2].strip()
-            if district and obj:
-                entries.append({"district": district, "object": obj})
-    return entries
-
-
-def filter_objects_by_districts(reference, districts):
-    """Только кладбища, относящиеся к выбранным районам."""
-    allowed = set(districts)
-    return [r for r in reference if r["district"] in allowed]
-
-
-def join_districts(districts):
-    return ", ".join(districts)
-
-
-def join_objects(objects, custom=""):
-    lst = [o.get("object", "") for o in objects if o.get("object")]
-    if custom and custom.strip():
-        lst.append(custom.strip())
-    return "; ".join(lst)
-
-
-def _inline_replace(paragraph, mapping):
-    """Заменяет плейсхолдеры в абзаце regex-ом (учитывая разбивку по runs).
-    Все заменённые значения (плейсхолдеры) — подчёркнутые."""
-    full = "".join(r.text for r in paragraph.runs)
-    if "Placeholder_" not in full:
-        return
-
-    def repl(m):
-        tok = m.group(1)
-        return str(mapping.get(tok, m.group(0)))
-
-    new = _PH_RE.sub(repl, full)
-    if new == full:
-        return
-    if paragraph.runs:
-        paragraph.runs[0].text = new
-        for r in paragraph.runs:
-            r.font.underline = True
-        for r in paragraph.runs[1:]:
-            r.text = ""
-
-
-def fill_doc(doc, mapping):
-    """Заменяет плейсхолдеры во всех абзацах и таблицах документа."""
-    for para in doc.paragraphs:
-        _inline_replace(para, mapping)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    _inline_replace(para, mapping)
-    return doc
 
 
 def _iter_all_paragraphs(doc):
@@ -159,20 +75,13 @@ def _set_para_text(p, text):
 
 
 def _build_persons_block(doc, persons):
-    """Перестраивает блок «для меня лично и следующего(их) со мной».
-
-    Заявитель в этом месте НЕ показывается (пропуск выдается отдельно).
-    Здесь перечисляются только сопровождающие, каждый по маске
-    «Фамилия Имя Отчество, дата рождения» — одной строкой, без абзацев.
-    Строка-шаблон (номер + данные) клонируется на каждого сопровождающего.
-    """
+    """Перестраивает блок сопровождающих в заявлении (по одному на человека)."""
     W = qn('w:p')
     WTR = qn('w:tr')
     WTC = qn('w:tc')
     TBL = qn('w:tbl')
     anchor_text = "для граждан Республики Беларусь"
 
-    # находим таблицу заявления (плейсхолдеры разбиты на несколько w:t — склеиваем)
     tbl = None
     for t in doc.element.body.iter(TBL):
         full = "".join(x.text or "" for x in t.iter(qn('w:t')))
@@ -183,7 +92,6 @@ def _build_persons_block(doc, persons):
         return
     rows = [tr for tr in tbl if tr.tag == WTR]
 
-    # строка-шаблон (с данными Placeholder_10.x) и якорная строка
     tpl_row = None
     anchor_row = None
     for tr in rows:
@@ -197,11 +105,9 @@ def _build_persons_block(doc, persons):
     if tpl_row is None or anchor_row is None:
         return
 
-    # клоны-шаблоны (до удаления из дерева)
     num_tpl = deepcopy(tpl_row)
     data_tpl = deepcopy(tpl_row)
 
-    # удаляем исходную строку-шаблон и следующую за ней «пустую» строку-«2»
     try:
         i = rows.index(tpl_row)
         for tr in rows[i:i + 2]:
@@ -210,7 +116,6 @@ def _build_persons_block(doc, persons):
     except Exception:
         pass
 
-    # вставляем строки сопровождающих перед якорной строкой
     for i, pers in enumerate(persons):
         name = " ".join(x for x in [pers.get("last_name", ""), pers.get("first_name", ""), pers.get("middle_name", "")] if x)
         birth = pers.get("birth_date", "")
@@ -236,7 +141,7 @@ def _build_persons_block(doc, persons):
 
 
 def _today_dmy():
-    return datetime.now().strftime("%d.%m.%Y")
+    return today_dmy()
 
 
 def make_application(data):
@@ -258,13 +163,10 @@ def make_application(data):
         "Placeholder_13": data.get("car_number", ""),
         "Placeholder_9": data.get("app_date") or _today_dmy(),
     }
-    # распределение районов по ячейкам Placeholder_4.1/4.2/4.3 (если есть в шаблоне)
     for i in range(3):
         m["Placeholder_4.%d" % (i + 1)] = districts[i] if i < len(districts) else ""
 
     fill_doc(doc, m)
-
-    # блок людей: только сопровождающие (заявитель здесь не показывается)
     _build_persons_block(doc, data.get("persons", []))
     return doc
 
@@ -308,15 +210,8 @@ def make_transport(data):
     return doc
 
 
-def sanitize(s, default="файл"):
-    illegal = '<>:"/\\|?*'
-    return ("".join(c for c in s if c not in illegal).strip() or default)
-
-
 def generate_all(data, output_dir=None):
-    """Полный комплект документов по промту. Возвращает список файлов.
-
-    Создаёт подпапку ДД.ММ.ГГГГ.ЧЧ.ММ и имена файлов по промту."""
+    """Полный комплект документов по п. 14.3. Возвращает список файлов."""
     if output_dir is None:
         output_dir = os.path.join(runtime_base(), "output")
     stamp = datetime.now().strftime("%d.%m.%Y.%H.%M")
@@ -326,19 +221,16 @@ def generate_all(data, output_dir=None):
     created = []
     lname = sanitize(data["last_name"], "Заявитель")
 
-    # 1. Заявление
     d = make_application(data)
     p = os.path.join(out, "Заявление_%s.docx" % lname)
     d.save(p)
     created.append(p)
 
-    # 2. Индивидуальный пропуск заявителя
     d = make_individual(data)
     p = os.path.join(out, "Пропуск_Заявитель_%s.docx" % lname)
     d.save(p)
     created.append(p)
 
-    # 3. Индивидуальные пропуска пассажиров (отдельный файл на каждого)
     for person in data.get("persons", []):
         plname = sanitize(person["last_name"], "Пассажир")
         d = make_individual(data, person)
@@ -346,7 +238,6 @@ def generate_all(data, output_dir=None):
         d.save(p)
         created.append(p)
 
-    # 4. Транспортный пропуск
     if data.get("car_make", "").strip() or data.get("car_number", "").strip():
         car = sanitize(data.get("car_number", "") or "Авто", "Авто")
         d = make_transport(data)
@@ -354,62 +245,64 @@ def generate_all(data, output_dir=None):
         d.save(p)
         created.append(p)
 
-    # запись в БД истории (для авто-подстановки в будущих сессиях)
     _db_remember(data)
-
     return created
 
 
-# ----------------------------------------------------------------------------
-# Лёгкая «База знаний» для авто-подстановки (упрощённый вариант памяти из промта)
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# База знаний — SQLite (совместимый интерфейс с прежним JSON-слоем)
+# ---------------------------------------------------------------------------
 def _db_path():
     d = os.path.join(runtime_base(), "data")
     os.makedirs(d, exist_ok=True)
-    return os.path.join(d, "permit_history.json")
+    return os.path.join(d, dbm.db_filename("143"))
+
+
+def _db_conn():
+    return dbm.PermitDB(_db_path())
 
 
 def _db_load():
-    import json
+    """Все записи (для выпадающих списков)."""
     try:
-        with open(_db_path(), "r", encoding="utf-8") as f:
-            return json.load(f)
+        return _db_conn().load()
+    except Exception:
+        return []
+
+
+def _db_load_fio():
+    try:
+        return _db_conn().load("fio")
     except Exception:
         return []
 
 
 def db_find(fio):
-    """Ищет прошлую запись по фамилии-имени-отчеству. Возвращает dict или None."""
-    try:
-        key = (fio or "").strip().lower()
-        if not key:
-            return None
-        for rec in _db_load():
-            rk = " ".join(x for x in [rec.get("last_name", ""), rec.get("first_name", ""), rec.get("middle_name", "")] if x).strip().lower()
-            if rk == key:
-                return rec
-        return None
-    except Exception:
-        return None
+    """Последняя запись по ФИО."""
+    return dbm.PermitDB(_db_path()).find(fio, "fio") if (fio or "").strip() else None
 
 
 def _db_remember(data):
+    """Сохраняет запись (с миграцией JSON при первом запуске)."""
+    db = _db_conn()
+    # однократная миграция из прежнего JSON
     try:
-        import json
-        rec = {
-            "last_name": data["last_name"], "first_name": data["first_name"],
-            "middle_name": data["middle_name"], "birth_date": data.get("birth_date", ""),
-            "id_number": data.get("id_number", ""), "goal": data.get("goal", ""),
-            "districts": data.get("districts", []),
-            "objects": data.get("objects", ""),
-            "car_make": data.get("car_make", ""), "car_number": data.get("car_number", ""),
-        }
-        recs = [r for r in _db_load() if not (
-            r.get("last_name") == rec["last_name"]
-            and r.get("first_name") == rec["first_name"]
-            and r.get("middle_name") == rec["middle_name"])]
-        recs.insert(0, rec)
-        with open(_db_path(), "w", encoding="utf-8") as f:
-            json.dump(recs[:200], f, ensure_ascii=False, indent=1)
+        import json as _json
+        legacy = os.path.join(runtime_base(), "data", "permit_history.json")
+        if os.path.exists(legacy):
+            recs = _json.load(open(legacy, encoding="utf-8"))
+            if recs:
+                dbm.migrate_from_json(db, legacy, "fio")
+                os.rename(legacy, legacy + ".migrated")
     except Exception:
         pass
+    key = " ".join(x for x in [data.get("last_name", ""), data.get("first_name", ""), data.get("middle_name", "")] if x).strip()
+    rec = {
+        "key": key, "last_name": data.get("last_name", ""), "first_name": data.get("first_name", ""),
+        "middle_name": data.get("middle_name", ""), "birth_date": data.get("birth_date", ""),
+        "id_number": data.get("id_number", ""), "goal": data.get("goal", ""),
+        "districts": data.get("districts", []), "objects": data.get("objects", ""),
+        "car_make": data.get("car_make", ""), "car_number": data.get("car_number", ""),
+    }
+    db.upsert(rec, "fio")
+    db.close()

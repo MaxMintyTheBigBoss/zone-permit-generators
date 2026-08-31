@@ -553,7 +553,7 @@ class App(tk.Tk):
         """Вкладка «О программе»."""
         txt = (
             "Генератор_пропусков_14.3\n"
-            "Версия 0.1.3\n\n"
+            "Версия 0.1.6\n\n"
             "Создатель: Соломейчук Алексей\n"
             "Creator: Salamiaichuk Aliaksei\n\n"
             "Email: al.vl.solo@yandex.by\n\n"

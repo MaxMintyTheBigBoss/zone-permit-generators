@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Графический интерфейс «Генератор пропусков 14.5» (вывоз имущества).
-Версия 0.2.5
+Версия 0.2.8
 Создатель: Соломейчук Алексей / Salamiaichuk Aliaksei
 Email: al.vl.solo@yandex.by
 © 2025 Соломейчук Алексей / Salamiaichuk Aliaksei
@@ -22,7 +22,7 @@ except ImportError:
 import generator_145 as generator
 
 APP_NAME = "Генератор пропусков 14.5 (вывоз имущества)"
-APP_VERSION = "0.2.5"
+APP_VERSION = "0.2.8"
 BG_COLOR = "#FDD9B5"  # светло-песочный/персиковый
 BTN_BG = "#E8C496"    # чуть темнее для кнопок
 BTN_ACTIVE = "#D4AD7A"

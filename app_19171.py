@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Графический интерфейс «Генератор пропусков 19.17.1».
-Версия 0.3.8
+Версия 0.3.12
 Создатель: Соломейчук Алексей / Salamiaichuk Aliaksei
 Email: al.vl.solo@yandex.by
 © 2025 Соломейчук Алексей / Salamiaichuk Aliaksei
@@ -22,7 +22,7 @@ except ImportError:
 import generator_19171 as generator
 
 APP_NAME = "Генератор пропусков 19.17.1"
-APP_VERSION = "0.3.9"
+APP_VERSION = "0.3.12"
 BG_COLOR = "#E6EBE0"  # светло-серый/голубоватый
 BTN_BG = "#CAD4CC"    # чуть темнее для кнопок
 BTN_ACTIVE = "#B3C3B8"
