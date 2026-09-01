@@ -22,6 +22,7 @@ except ImportError:
 import generator
 
 APP_NAME = "Генератор_пропусков_14.3"
+APP_VERSION = "0.1.6"
 
 
 class CheckListbox(ttk.Frame):
@@ -558,12 +559,12 @@ class App(tk.Tk):
     def _build_about_tab(self, parent):
         """Вкладка «О программе»."""
         txt = (
-            "Генератор_пропусков_14.3\n"
-            "Версия 0.1.6\n\n"
+            f"{APP_NAME}\n"
+            f"Версия {APP_VERSION}\n\n"
             "Создатель: Соломейчук Алексей\n"
             "Creator: Salamiaichuk Aliaksei\n\n"
             "Email: al.vl.solo@yandex.by\n\n"
-            "© 2025 Соломейчук Алексей / Salamiaichuk Aliaksei\n"
+            "\u00a9 2025 Соломейчук Алексей / Salamiaichuk Aliaksei\n"
             "Все права защищены.\n\n"
             "Программа для генерации документов пропусков на въезд\n"
             "в зону эвакуации/отчуждения (п. 14.3 перечня\n"
