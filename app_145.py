@@ -20,6 +20,7 @@ except ImportError:
     HAS_TKCAL = False
 
 import generator_145 as generator
+from permit_update_gui import UpdateDialog, export_db_dialog
 
 APP_NAME = "Генератор пропусков 14.5 (вывоз имущества)"
 APP_VERSION = "0.2.8"
@@ -160,15 +161,17 @@ class App(tk.Tk):
         tab_about = ttk.Frame(nb); nb.add(tab_about, text="О программе")
         self._build_about_tab(tab_about)
 
-        # кнопки — grid с четырьмя равными колонками
+        # кнопки — grid с шестью равными колонками
         btns = ttk.Frame(self)
         btns.pack(fill="x", padx=8, pady=(0, 8))
-        for i in range(4):
+        for i in range(6):
             btns.columnconfigure(i, weight=1)
         ttk.Button(btns, text="Сгенерировать документы", command=self.generate).grid(row=0, column=0, sticky="ew", padx=2)
         ttk.Button(btns, text="Очистить форму", command=self.clear_form).grid(row=0, column=1, sticky="ew", padx=2)
         ttk.Button(btns, text="Куда сохранять…", command=self.choose_output).grid(row=0, column=2, sticky="ew", padx=2)
         ttk.Button(btns, text="Открыть папку", command=self.open_output).grid(row=0, column=3, sticky="ew", padx=2)
+        ttk.Button(btns, text="Выгрузить БД", command=self.export_db).grid(row=0, column=4, sticky="ew", padx=2)
+        ttk.Button(btns, text="Обновления…", command=self.check_updates).grid(row=0, column=5, sticky="ew", padx=2)
 
     def _entry(self, parent, label, var, row, col, width=30, **kw):
         ttk.Label(parent, text=label).grid(row=row, column=col, sticky="w", **kw)
@@ -519,6 +522,20 @@ class App(tk.Tk):
         )
         lbl = ttk.Label(parent, text=txt, justify="left", anchor="nw", wraplength=700)
         lbl.pack(fill="both", expand=True, padx=16, pady=16)
+
+    # ------------------------------------------------------------------
+    # Экспорт БД
+    # ------------------------------------------------------------------
+    def export_db(self):
+        export_db_dialog(self, generator._db_path_145(),
+                         "permit_history_145_XXXX.json")
+
+    # ------------------------------------------------------------------
+    # Проверка обновлений
+    # ------------------------------------------------------------------
+    def check_updates(self):
+        dlg = UpdateDialog(self, APP_VERSION, "Генератор_пропусков_14.5.exe")
+        self.wait_window(dlg)
 
 
 def main():
